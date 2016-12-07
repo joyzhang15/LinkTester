@@ -6,12 +6,12 @@ requirements:
 > python >= 3.3
 
 usage:
-> python link_test.py -d [host] -n [threading number] -t [timeout seconds]
+> python link_tester.py -d [host] -n [threading number] -t [timeout seconds]
 
 example:
-> python link_test.py -d m.sohu.com -n 100 -t 100
+> python link_tester.py -d m.sohu.com -n 100 -t 100
 
-> python link_test.py
+> python link_tester.py
 
 result:
 > [host]-error-[date].log will be generated in the same dir.
