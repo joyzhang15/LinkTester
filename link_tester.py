@@ -28,20 +28,18 @@ host = args.d
 num_worker_threads = args.n
 timeout = args.t
 
-# insite means link in website
-insite_set = set()
-# outsite means link is not in website
-outsite_set = set()
+
+insite_set = set()  # insite means link in website
+outsite_set = set()  # outsite means link is not in website
 insite_set_lock = threading.RLock()
 outsite_set_lock = threading.RLock()
 
-queue = Queue()
+queue = Queue()  # Task Queue
 
 # result of dead
-error_logger = Logger(name=host + '-error-' + datetime.now().strftime('%Y-%m-%d-%H:%M') + '.log',
-                      format='%(asctime)s - %(message)s')
-info_logger = Logger(name=host + '-info-' + datetime.now().strftime('%Y-%m-%d') + '.log')
-links_logger = Logger(host + '-links-' + datetime.now().strftime('%Y-%m-%d') + '.log')
+error_logger = Logger(name=host + '-error-' + datetime.now().strftime('%Y-%m-%d_%H-%M') + '.log')
+info_logger = Logger(name=host + '-info-' + datetime.now().strftime('%Y-%m-%d_%H-%M') + '.log')
+links_logger = Logger(host + '-links-' + datetime.now().strftime('%Y-%m-%d_%H-%M') + '.log')
 
 # only check links using these schemes
 supported_schemes = ('file', 'ftp', 'gopher', 'hdl', 'http', 'https', 'imap', 'mailto',
@@ -109,7 +107,8 @@ def link_process(url):
         error_logger.info(url=url, msg=error)
         return
     except socket.timeout as error:
-        info_logger.info(url=url, msg='%s. try again later' % error)
+        info_logger.info(url=url, msg='%s. retry later' % error)
+        # socket.timeout may cause by poor network status. Put url to queue and retry later
         queue.put(url)
         return
     except HTTPException as error:
@@ -123,34 +122,33 @@ def link_process(url):
             for link in link_iter:
                 link = link.group()
                 a = list(urlsplit(link))
-                if a[0] == '':
+                if a[0] == '':  # a[0] is scheme
                     a[0] = 'http'
                 if a[0] not in supported_schemes:
                     continue
-                if a[1] == '':
+                if a[1] == '':  # a[1] is netloc
                     a[1] = host
                 link = urlunsplit(a)
                 if a[1] == host:
                     if set_add_nx('insite', link):
-                        queue.put(link)
+                        queue.put(link)  # put link into task queue
                         links_logger.info(url=link, msg='scrap from ' + url)
                 elif set_add_nx('outsite', link):
-                    outsite_set.add(link)
-                    queue.put(link)
+                    queue.put(link)  # put link into task queue
                     links_logger.info(url=link, msg='scrap from ' + url)
 
 
 def work():
     while True:
+        print(threading.active_count(), ' threads are running; ', queue.qsize(), ' links wait for check')
         try:
-            url = queue.get(block=False)
-        except Empty:
+            url = queue.get(block=False)  # get link from task queue
+        except Empty:  # if task queue is empty, wait next task put in queue
             time.sleep(1)
             continue
-        print(threading.active_count(), ' threads are running; ',  queue.qsize(), ' links wait for check')
-        if url is None:
+        if url is None:  # None is stop signal. None will be put into queue after all tasks in queue done.
             break
-        link_process(url)
+        link_process(url)  # process link
         queue.task_done()
 
 if __name__ == '__main__':
@@ -162,8 +160,7 @@ if __name__ == '__main__':
         print('thread %d started' % i)
     queue.join()
 
-    print('len of insite_set ', len(insite_set))
-    print('len of outsite_set ', len(outsite_set))
+    print('All tasks done')
     for i in range(num_worker_threads):
         queue.put(None)
     print('END')
