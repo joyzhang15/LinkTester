@@ -95,7 +95,10 @@ def read_content(response, content):
 # process link, including check outsite link and read insite link content.
 def link_process(url):
     global insite_set, outsite_set
-    url = urllib.request.quote(url, safe='/:?=#')
+    url0 = url
+    url = urllib.request.quote(url, safe=';/?:@&=+$,#%')
+    if url0 != url:
+        info_logger.error(url=url0, msg='url change ' + url)
     try:
         # response = urllib.request.urlopen(url, timeout=timeout)
         response = opener.open(url, timeout=timeout)
@@ -103,16 +106,13 @@ def link_process(url):
     except (URLError, HTTPError) as error:
         error_logger.info(url=url, msg=error)
         return
-    except (ConnectionResetError, TimeoutError) as error:
-        error_logger.info(url=url, msg=error)
-        return
-    except socket.timeout as error:
-        info_logger.info(url=url, msg='%s. retry later' % error)
-        # socket.timeout may cause by poor network status. Put url to queue and retry later
-        queue.put(url)
-        return
     except HTTPException as error:
         error_logger.error(url=url, msg=error)
+        return
+    except (ConnectionResetError, TimeoutError, socket.timeout) as error:
+        info_logger.error(url=url, msg='%s. retry later' % error)
+        # socket.timeout may cause by poor network status. Put url to queue and retry later
+        queue.put(url)
         return
     info_logger.info(url=url, msg=response.code)
     if urlsplit(response.url)[1] == host:
